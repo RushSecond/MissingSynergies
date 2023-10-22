@@ -9810,53 +9810,60 @@ class TeleFrag(Upgrade):
             return
         evt.unit.deal_damage(self.get_stat("max_charges"), Tags.Physical, self)
 
-class ThermalGradientBuff(FreezeDependentBuff):
+class ThermalWeaknessBuff(Buff):
+
+    def __init__(self, resist):
+        self.resist = resist
+        Buff.__init__(self)
 
     def on_init(self):
-        self.name = "Thermal Gradient"
+        self.name = "Thermal Weakness"
         self.color = Tags.Fire.color
         self.buff_type = BUFF_TYPE_CURSE
         self.asset = ["MissingSynergies", "Statuses", "amplified_fire"]
-        self.resists[Tags.Fire] = -100
+        for tag in [Tags.Fire, Tags.Ice]:
+            self.resists[tag] = -self.resist
 
-class ThermalImbalanceBuff(DamageAuraBuff):
+class ThermalImbalanceBuff(Buff):
 
     def __init__(self, spell):
-        DamageAuraBuff.__init__(self, damage=2, damage_type=[Tags.Fire, Tags.Ice], radius=spell.get_stat("radius"))
         self.source = spell
-        self.name = "Thermal Imbalance"
-        self.color = Tags.Ice.color
-        self.entropy = spell.get_stat("entropy")
-        self.gradient = spell.get_stat("gradient")
-        self.stack_type = STACK_REPLACE
-        self.global_triggers[EventOnBuffApply] = self.on_buff_apply
-        self.global_triggers[EventOnBuffRemove] = self.on_buff_remove
+        Buff.__init__(self)
 
-    def on_advance(self):
-        if not self.entropy:
-            return
-        DamageAuraBuff.on_advance(self)
+    def on_init(self):
+        self.name = "Thermal Imbalance"
+        self.damage = self.source.get_stat("damage")
+        self.duration = self.source.get_stat("duration")
+        self.buff_type = BUFF_TYPE_CURSE
+        self.asset = ["MissingSynergies", "Statuses", "amplified_ice"]
+        self.color = Tags.Ice.color
+        
+        self.owner_triggers[EventOnBuffApply] = self.on_buff_apply
+        self.owner_triggers[EventOnDamaged] = self.on_damaged
+    
+    def on_applied(self, owner):
+        freeze = self.owner.get_buff(FrozenBuff)
+        if freeze:
+            self.owner.level.queue_spell(self.freeze_burn(freeze.turns_left))
+            return ABORT_BUFF_APPLY
     
     def on_buff_apply(self, evt):
-        if distance(evt.unit, self.owner) > self.radius:
+        if not isinstance(evt.buff, FrozenBuff) or evt.buff.turns_left <= 0:
             return
-        if not isinstance(evt.buff, FrozenBuff) or not are_hostile(evt.unit, self.owner) or evt.buff.turns_left <= 0:
+        freeze = self.owner.get_buff(FrozenBuff)
+        if freeze:
+            self.owner.remove_buff(self)
+            self.owner.level.queue_spell(self.freeze_burn(freeze.turns_left))
+            
+    def freeze_burn(self, turns):
+        self.owner.deal_damage(self.damage * turns, Tags.Fire, self.source)
+        yield
+            
+    def on_damaged(self, evt):
+        if evt.damage_type != Tags.Fire:
             return
-        if self.gradient:
-            evt.unit.apply_buff(ThermalGradientBuff(), evt.buff.turns_left)
-        evt.unit.deal_damage(evt.buff.turns_left, Tags.Fire, self.source)
-
-    def on_buff_remove(self, evt):
-        if distance(evt.unit, self.owner) > self.radius:
-            return
-        if not isinstance(evt.buff, FrozenBuff) or not are_hostile(evt.unit, self.owner) or evt.buff.turns_left <= 0:
-            return
-        evt.unit.deal_damage(evt.buff.turns_left, Tags.Ice, self.source)
-
-    def get_tooltip(self):
-        if not self.entropy:
-            return ""
-        return DamageAuraBuff.get_tooltip(self)
+        self.owner.remove_buff(self)
+        self.owner.apply_buff(FrozenBuff(), self.duration)
 
 class ThermalImbalanceSpell(Spell):
 
@@ -9864,25 +9871,32 @@ class ThermalImbalanceSpell(Spell):
         self.name = "Thermal Imbalance"
         self.asset = ["MissingSynergies", "Icons", "thermal_imbalance"]
         self.tags = [Tags.Fire, Tags.Ice, Tags.Enchantment]
-        self.level = 3
-        self.max_charges = 3
-        self.range = 0
-        self.radius = 7
-        self.duration = 20
+        self.level = 5
+        self.max_charges = 4
+        self.damage = 16
+        self.range = 10
+        self.radius = 3
+        self.duration = 3
+        self.requires_los = False
+        self.resistance_debuff = 0
 
-        self.upgrades["duration"] = (20, 2)
-        self.upgrades["radius"] = (3, 2)
-        self.upgrades["entropy"] = (1, 3, "Thermal Entropy", "Each turn, enemies inside this spell's radius also take [2_fire:fire] or [2_ice:ice] damage.\nThis damage is fixed, and cannot be increased using shrines, skills, or buffs.")
-        self.upgrades["gradient"] = (1, 5, "Thermal Gradient", "When an enemy inside this spell's radius is [frozen], before it takes [fire] damage from this spell, it loses [100_fire:fire] resistance for a duration equal to the [freeze] duration.\nWhenever the remaining duration of [freeze] on an enemy is refreshed or extended, the remaining duration of thermal gradient will be lengthened to match if it is shorter.\nIf thermal gradient is removed prematurely and the enemy is still [frozen], it will automatically reapply itself.")
+        self.upgrades["damage"] = (10, 3)
+        self.upgrades["duration"] = (2, 2)
+        self.upgrades["radius"] = (2, 3)
+        self.upgrades["resistance_debuff"] = (50, 5, "Thermal Weakness", "Also permanently afflicts enemies with a non-stacking -50 to [fire] and [ice] resist.")
 
     def get_description(self):
-        return ("Thermal energy becomes imbalanced in a radius of [{radius}_tiles:radius] around yourself.\n"
-                "Whenever an enemy in the area is [frozen], it takes [fire] damage equal to the [freeze] duration.\n"
-                "Whenever an enemy in the area recovers from [freeze], it takes [ice] damage equal to the remaining [freeze] duration.\n"
-                "Lasts [{duration}_turns:duration].").format(**self.fmt_dict())
+        return ("Permanently afflict all enemies in a [{radius}_tile:radius] radius with thermal imbalance.\n"
+                "Whenever an afflicted enemy is [frozen] or a [frozen] enemy is afflicted, its thermal imbalance is consumed to immediately deal [{damage}_fire:fire] damage per turn of [freeze].\n"
+                "Whenever an afflicted enemy is dealt [fire] damage, its thermal imbalance is consumed to [freeze] it for [{duration}_turns:duration].").format(**self.fmt_dict())
 
     def cast_instant(self, x, y):
-        self.caster.apply_buff(ThermalImbalanceBuff(self), self.get_stat("duration"))
+        for unit in self.owner.level.get_units_in_ball(Point(x, y), self.get_stat("radius")):
+            if not are_hostile(unit, self.caster):
+                continue
+            if self.get_stat("resistance_debuff") > 0:
+                unit.apply_buff(ThermalWeaknessBuff(self.get_stat("resistance_debuff")))
+            unit.apply_buff(ThermalImbalanceBuff(self))
 
 class TrickWalk(Upgrade):
 
