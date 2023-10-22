@@ -1,0 +1,62 @@
+------ NERFS
+
+- Xenodruid: minion hp 40 -> 25, charges 3 -> 2, confusion spell cannot be applied to player (if unit.is_player_controlled: return False)
+
+- DeathMetal: minion duration 3 -> 2, minion damage 13 -> 10, max channel inf -> 10
+
+- Mad Maestro: charges 6 -> 2, berserk duration on alt cast 1 - > 3
+
+- Blade Rush: charge 9 -> 5, range 15 -> 10
+
+- Blood Fodder: 1 goblin per 5 hp lost -> 10 hp lost (cost 4->5)
+
+- Carcinization: crab is only created if a unit dies to timeout, not if it is killed any other way
+
+- Afterlife Echoes: cost 4 -> 6, duration & duration upgrade 15 -> 5, spirit echoes upgrade spirits deal holy OR dark damage, not both (I don't know how to change the description for that though)
+
+Eternal Bomber:
+
+--------------- (DONT FORGET)!!!!!!!!!!!!!!!
+
+- Essence Leech: (level 2 and damage increased to 20, charges increased to 12, gives 1 essence per 4 damage, but is single-target and each SH adds 1 lifetime to enemies. radius upgrade changed to range, all upgrades cost reduced by 1 or 2)
+
+------ BUFFS
+
+Shield Burst: (charges?)
+
++ Web of Fire: damage 8 -> 16
+
++ Psychadelic Shroom: delirium reduces damage by 3, withdrawal deals 2 arcane and 2 poison damage
+
++ Reality Feint: now does an "arcane heal" which bypasses healing reduction
+
++ Wild Hunt: cost 4-> 2
+
++ Chaos Hail: charges 2 -> 4
+
++ Cosmic Stasis: added 20 ice damage every turn
+
+Drought
+
++ Irradiate deals both 2 arcane and 2 poison
+
++ Thermal Imbalance: cost 6 -> 3, duration 5 -> 20, duration upgrade cost 3->2 and duration 5->20
+
+(level 5, 4 charges)
+(Permanently afflict all enemies in a 4 tile radius with thermal imbalance)
+(When an afflicted enemy is frozen or a frozen enemy is afflicted, its thermal imbalance is removed to immediately deal 16 fire damage per turn of freeze)
+(When an afflicted enemy is dealt fire damage, its thermal imbalance is removed to freeze it for 3 turns.)
+(Upgrades:)
+(Damage: +10 damage)
+(Duration: +2 duration)
+(Radius: +2 radius)
+(Resistances: also permanently applies a non-stacking -50 fire and ice resistance)
+
+
+
+
+
+
+BUGFIX CHANGE:
+
+threat should show for things that have 1 cooldown
