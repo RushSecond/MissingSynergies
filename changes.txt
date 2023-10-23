@@ -16,9 +16,7 @@
 
 Eternal Bomber:
 
---------------- (DONT FORGET)!!!!!!!!!!!!!!!
-
-- Essence Leech: (level 2 and damage increased to 20, charges increased to 12, gives 1 essence per 4 damage, but is single-target and each SH adds 1 lifetime to enemies. radius upgrade changed to range, all upgrades cost reduced by 1 or 2)
+- Essence Leech: level 2 and damage increased to 20, charges increased to 10, gives 1 essence per 4 damage, but is single-target and each SH adds 1 lifetime to enemies. radius upgrade changed to range, all upgrades cost reduced by 1 or 2
 
 ------ BUFFS
 
@@ -40,23 +38,13 @@ Drought
 
 + Irradiate deals both 2 arcane and 2 poison
 
-+ Thermal Imbalance: cost 6 -> 3, duration 5 -> 20, duration upgrade cost 3->2 and duration 5->20
-
-(level 5, 4 charges)
-(Permanently afflict all enemies in a 4 tile radius with thermal imbalance)
-(When an afflicted enemy is frozen or a frozen enemy is afflicted, its thermal imbalance is removed to immediately deal 16 fire damage per turn of freeze)
-(When an afflicted enemy is dealt fire damage, its thermal imbalance is removed to freeze it for 3 turns.)
-(Upgrades:)
-(Damage: +10 damage)
-(Duration: +2 duration)
-(Radius: +2 radius)
-(Resistances: also permanently applies a non-stacking -50 fire and ice resistance)
-
-
-
-
-
-
-BUGFIX CHANGE:
-
-threat should show for things that have 1 cooldown
++ Thermal Imbalance: reworked
+level 5, 4 charges
+Permanently afflict all enemies in a 4 tile radius with thermal imbalance)
+When an afflicted enemy is frozen or a frozen enemy is afflicted, its thermal imbalance is removed to immediately deal 16 fire damage per turn of freeze
+When an afflicted enemy is dealt fire damage, its thermal imbalance is removed to freeze it for 3 turns.
+Upgrades:
+Damage: +10 damage
+Duration: +2 duration
+Radius: +2 radius
+Resistances: also permanently applies a non-stacking -50 fire and ice resistance

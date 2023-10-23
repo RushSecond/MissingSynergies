@@ -8156,7 +8156,7 @@ class FadingBuff(Buff):
             self.give_essence(damage)
 
     def give_essence(self, damage):
-        self.spell.caster.apply_buff(StolenEssenceBuff(), math.ceil(damage/10))
+        self.spell.caster.apply_buff(StolenEssenceBuff(), math.ceil(damage/self.spell.get_stat("leechDivisor")-0.001))
 
 class StolenEssenceBuff(Buff):
     
@@ -8183,29 +8183,37 @@ class EssenceLeechSpell(Spell):
         self.name = "Essence Leech"
         self.asset = ["MissingSynergies", "Icons", "essence_leech"]
         self.tags = [Tags.Arcane, Tags.Dark, Tags.Enchantment]
-        self.level = 4
-        self.max_charges = 7
-        self.range = 9
-        self.damage = 10
-        self.radius = 3
+        self.level = 2
+        self.max_charges = 10
+        self.range = 10
+        self.damage = 20
+        self.leechDivisor = 4
         self.requires_los = False
 
-        self.upgrades["max_charges"] = (7, 4)
-        self.upgrades["radius"] = (2, 3)
-        self.upgrades["agony"] = (1, 3, "Fading Agony", "Fading enemies behave as if they have taken [arcane] damage each turn equal to this spell's [damage] stat, ignoring immunity and triggering all effects that are normally triggered when enemies are damaged.")
-        self.upgrades["haste"] = (1, 4, "Hastened Demise", "Each turn, if a fading unit's current HP divided by this spell's [damage] stat is less than its remaining duration, its remaining duration is reduced to this value.\nIf a fading unit dies before its remaining duration expires, you immediately gain Stolen Essence equal to what you could have gained from all of its remaining turns.")
-        self.upgrades["dry"] = (1, 3, "Leech Dry", "When affecting an enemy that is already fading, you will immediately gain Stolen Essence equal to 25% of the total amount you could have gained from its whole lifetime.")
+        self.upgrades["max_charges"] = (10, 2)
+        self.upgrades["range"] = (5, 2)
+        self.upgrades["agony"] = (1, 2, "Fading Agony", "Fading enemies behave as if they have taken [arcane] damage each turn equal to this spell's [damage] stat, ignoring immunity and triggering all effects that are normally triggered when enemies are damaged.")
+        self.upgrades["haste"] = (1, 2, "Hastened Demise", "Each turn, if a fading unit's current HP divided by this spell's [damage] stat is less than its remaining duration, its remaining duration is reduced to this value.\nIf a fading unit dies before its remaining duration expires, you immediately gain Stolen Essence equal to what you could have gained from all of its remaining turns.")
+        self.upgrades["dry"] = (1, 1, "Leech Dry", "When affecting an enemy that is already fading, you will immediately gain Stolen Essence equal to 25% of the total amount you could have gained from its whole lifetime.")
 
     def get_description(self):
-        return ("Drain essence from enemies in a [{radius}_tile:radius] radius, causing them to begin fading, automatically dying after a number of turns equal to their max HP divided [{damage}:arcane], rounded up, as if they are temporarily summoned units. This number benefits from this spell's bonuses to [damage].\n"
-                "Each turn, each fading enemy grants you 1 turn of Stolen Essence per 10 [damage] this spell has, rounded up. Your temporary minions will expend remaining duration of Stolen Essence before their own remaining lifetimes.\n"
-                "Temporary enemies are instantly killed, and their remaining lifetimes given to you as Stolen Essence.").format(**self.fmt_dict())
+        return ("Drain essence from an enemy, causing it to begin fading, automatically dying after a number of turns equal to its max HP divided [{damage}:arcane] plus its SH, rounded up, as if it were a temporarily summoned unit. This number benefits from this spell's bonuses to [damage].\n"
+                "Each turn, each fading enemy grants you 1 turn of Stolen Essence per %d [damage] this spell has, rounded up. Your temporary minions will expend remaining duration of Stolen Essence before their own remaining lifetimes.\n"
+                "Temporary enemies are instantly killed, and their remaining lifetimes given to you as Stolen Essence." % self.leechDivisor).format(**self.fmt_dict())
+                
+    def can_cast(self, x, y):
+        unit = self.caster.level.get_unit_at(x, y)
+        if unit is None:
+            return False
+        if not are_hostile(unit, self.caster):
+            return False
+        return Spell.can_cast(self, x, y)
 
     def cast_instant(self, x, y):
-        for unit in self.owner.level.get_units_in_ball(Point(x, y), self.get_stat("radius")):
-            if not are_hostile(unit, self.caster):
-                continue
-            unit.apply_buff(FadingBuff(self))
+        target = self.caster.level.get_unit_at(x, y)
+        if not target:
+            return
+        target.apply_buff(FadingBuff(self))
 
 class BloodyMassBuff(Buff):
 
