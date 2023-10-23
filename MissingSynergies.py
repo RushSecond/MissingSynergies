@@ -8130,7 +8130,7 @@ class FadingBuff(Buff):
         return self.spell.get_stat("damage") > 0
 
     def on_applied(self, owner):
-        self.owner.turns_to_death = math.ceil(self.owner.max_hp/self.spell.get_stat("damage"))
+        self.owner.turns_to_death = self.owner.shields + math.ceil(self.owner.max_hp/self.spell.get_stat("damage"))
     
     def on_advance(self):
         # Could happen if a minion is berserked, applied with fading, recovers from berserk, then given Heart of Winter.
@@ -8139,7 +8139,7 @@ class FadingBuff(Buff):
         damage = self.spell.get_stat("damage")
         self.give_essence(damage)
         if self.spell.get_stat("haste"):
-            curr = math.ceil(self.owner.cur_hp/damage)
+            curr = self.owner.shields + math.ceil(self.owner.cur_hp/damage)
             if curr < self.owner.turns_to_death:
                 self.owner.turns_to_death = curr
         if self.spell.get_stat("agony"):
@@ -8156,7 +8156,7 @@ class FadingBuff(Buff):
             self.give_essence(damage)
 
     def give_essence(self, damage):
-        self.spell.caster.apply_buff(StolenEssenceBuff(), math.ceil(damage/self.spell.get_stat("leechDivisor")-0.001))
+        self.spell.caster.apply_buff(StolenEssenceBuff(), math.ceil(damage/self.spell.get_stat("leechDivisor")))
 
 class StolenEssenceBuff(Buff):
     
