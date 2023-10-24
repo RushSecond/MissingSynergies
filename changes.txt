@@ -10,11 +10,13 @@
 
 - Blood Fodder: 1 goblin per 5 hp lost -> 10 hp lost (cost 4->5)
 
-- Carcinization: crab is only created if a unit dies to timeout, not if it is killed any other way
+- Carcinization: crab is only created if a unit dies to timeout, not if it is killed any other way (cost 5-> 4?)
 
 - Afterlife Echoes: cost 4 -> 6, duration & duration upgrade 15 -> 5, spirit echoes upgrade spirits deal holy OR dark damage, not both (I don't know how to change the description for that though)
 
 Eternal Bomber:
+
+Primordial Rot: (max hp steal 4 -> 3)
 
 - Essence Leech: level 2 and damage increased to 20, charges increased to 10, gives 1 essence per 4 damage, but is single-target and each SH adds 1 lifetime to enemies. radius upgrade changed to range, all upgrades cost reduced by 1 or 2
 
@@ -23,6 +25,8 @@ Eternal Bomber:
 Shield Burst: (charges?)
 
 + Web of Fire: damage 8 -> 16
+
+Chaos Shuffle
 
 + Psychadelic Shroom: delirium reduces damage by 3, withdrawal deals 2 arcane and 2 poison damage
 
@@ -39,6 +43,7 @@ Drought
 + Irradiate deals both 2 arcane and 2 poison
 
 + Thermal Imbalance: reworked
+
 level 5, 4 charges
 Permanently afflict all enemies in a 4 tile radius with thermal imbalance)
 When an afflicted enemy is frozen or a frozen enemy is afflicted, its thermal imbalance is removed to immediately deal 16 fire damage per turn of freeze
