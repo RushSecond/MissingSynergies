@@ -194,7 +194,7 @@ class IrradiateSpell(Spell):
 
     def get_description(self):
         return ("Irradiates enemies in a [{radius}_tile:radius] radius for [{duration}_turns:duration].\n"
-                "An Irradiated target randomly deals [2_arcane:arcane] and [2_poison:poison] damage to all enemies each turn, including itself, in a radius equal to its [poison] duration divided by 10, rounded up.\n"
+                "An Irradiated target deals [2_arcane:arcane] and [2_poison:poison] damage to all enemies each turn, including itself, in a radius equal to its [poison] duration divided by 10, rounded up.\n"
                 "This damage is fixed, and cannot be increased using shrines, skills, or buffs.").format(**self.fmt_dict())
 
     def cast_instant(self, x, y):
