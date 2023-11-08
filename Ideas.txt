@@ -4,3 +4,43 @@ Main icon opacities are 39%, 71%, 100%, 100%, 100%, 100%, 100%, 72% for the 8 fr
 
 
 
+STAPLE SPELLS
+
+level 2 - chaos barrage, fan of flames, chain lightning (touch of death?)
+level 3 - flame burst, ghostball, nightmare aura
+level 4 - ice vortex, plague of filth, searing seal
+level 5 - cantrip cascade, chill wind, flock of eagles
+level 6 - heaven's wrath, imp swarm, searing orb(little weak)
+level 7 - multicast, word of chaos, word of ice
+
+STAPLE SKILLS
+
+level 4 - arcane shield, crystal power, venom spit
+level 5 - necrostatics, prince of ruin, searing heat
+level 6 - bone guard, icy veangence, starfire
+level 7 - arch conjurer, fire lord, void spikes
+
+------ NERFS
+
+Lucky gnome: (charges 11 -> 7)
+
+Eternal Bomber:
+
+Astral Meltdown (doesn't reduce arcane resist unless you get the 3 point upgrade)
+
+Primordial Rot: (max hp steal 4 -> 3) (death chance 10% -> 20%)
+
+
+------ BUFFS
+
+Shield Burst: (charges?)
+
+Chaos Shuffle
+
+Coolant Spray
+
+Burnout Reactor
+
+Drought
+
+Eyes of Chaos

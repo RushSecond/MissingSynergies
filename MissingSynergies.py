@@ -132,7 +132,8 @@ class IrradiateBuff(Buff):
                 continue
 
             damage_type = random.choice([Tags.Arcane, Tags.Poison])
-            unit.deal_damage(2, damage_type, self.spell)
+            unit.deal_damage(2, Tags.Arcane, self.spell)
+            unit.deal_damage(2, Tags.Poison, self.spell)
             effects_left -= 1
 
         # Show some graphical indication of this aura if it didnt hit much
@@ -193,7 +194,7 @@ class IrradiateSpell(Spell):
 
     def get_description(self):
         return ("Irradiates enemies in a [{radius}_tile:radius] radius for [{duration}_turns:duration].\n"
-                "An Irradiated target randomly deals [2_arcane:arcane] or [2_poison:poison] damage to all enemies each turn, including itself, in a radius equal to its [poison] duration divided by 10, rounded up.\n"
+                "An Irradiated target deals [2_arcane:arcane] and [2_poison:poison] damage to all enemies each turn, including itself, in a radius equal to its [poison] duration divided by 10, rounded up.\n"
                 "This damage is fixed, and cannot be increased using shrines, skills, or buffs.").format(**self.fmt_dict())
 
     def cast_instant(self, x, y):
@@ -504,7 +505,7 @@ class WildHuntSpell(Spell):
         self.asset = ["MissingSynergies", "Icons", "wild_hunt"]
         
         self.tags = [Tags.Enchantment, Tags.Nature, Tags.Translocation]
-        self.level = 4
+        self.level = 2
         self.max_charges = 6
         self.range = RANGE_GLOBAL
         self.requires_los = False
@@ -657,8 +658,8 @@ class BladeRushSpell(Spell):
         
         self.tags = [Tags.Sorcery, Tags.Metallic, Tags.Translocation]
         self.level = 4
-        self.max_charges = 9
-        self.range = 15
+        self.max_charges = 5
+        self.range = 10
         self.damage = 16
         
         self.upgrades["range"] = (5, 2)
@@ -1011,25 +1012,40 @@ class CrystalHammerSpell(Spell):
         self.level = 5
         self.max_charges = 6
         self.range = 8
-        self.damage = 100
-        self.extra_damage = 10
+        self.damage = 24
+        self.first_hit_bonus = 30
+        self.num_targets = 4
+        self.radius = 6
+        self.shieldbreak = 0
         self.can_target_empty = False
         
-        self.upgrades["extra_damage"] = (5, 3, "Extra Damage", "+5 extra damage per turn of [freeze] and [glassify].")
-        self.upgrades["stun"] = (1, 3, "Stunning Blow", "The target is also [stunned] for a duration equal to the total duration of [freeze] and [glassify] on the target.")
+        self.upgrades["damage"] = (16, 3)
+        self.upgrades["num_targets"] = (4, 3)
         self.upgrades["combo"] = (1, 4, "Hammer Combo", "If you know the Freeze spell, you will also cast it on the same target when you cast Crystal Hammer, before the hammer hits, if possible.\nIf you know the Petrify spell with the Glassify upgrade, you will also cast it on the same target when you cast Crystal Hammer, before the hammer hits, if possible.")
-        self.upgrades["shatter"] = (1, 7, "Shatter", "On hit, Crystal Hammer will also release a number of shards equal to the total duration of [frozen] and [glassify] on the target. If the target is killed, increase the number of shards by 1 per 20 max HP the target had, rounded up.\nEach shard targets a random enemy in a [{radius}_tile:radius] burst and deals [physical] damage equal to this spell's extra damage.\nThe same enemy can be hit more than once, and the original target can also be hit.\nThis occurs after [freeze] and [glassify] are removed from the original target.")
+        self.upgrades["shieldbreak"] = (8, 2, "Shield Breaker", "Crystal Hammer removes up to 8 SH from the target before dealing damage.")
     
     def get_description(self):
-        return ("Deal [{damage}_physical:physical] damage to the target. For every turn of [freeze] and [glassify] on the target, the damage is increased by [{extra_damage}:physical].\n"
-                "Remove all [freeze] and [glassify] on the target afterwards.").format(**self.fmt_dict())
+        return ("Deal [{big_damage}_physical:physical] damage to the target, and hit again for [{damage}_physical:physical] damage once for every turn of [freeze] and [glassify] on the target.\n"
+                "If the target is killed by Crystal Hammer, it shatters, causing any unused hits to deal 10% of its [damage:physical] to up to [{num_targets}:num_targets] random enemies in a [{radius}_tile:radius] radius in line of sight of the target.").format(**self.fmt_dict())
     
     def fmt_dict(self):
         stats = Spell.fmt_dict(self)
         stats["radius"] = self.get_stat("radius", base=6)
+        stats["big_damage"] = self.get_stat("damage") + self.get_stat("first_hit_bonus")
         return stats
+        
+    def get_impacted_tiles(self, x, y):
+        for p in self.owner.level.get_points_in_ball(x, y, self.get_stat('radius')):
+            if self.owner.level.can_see(x, y, p.x, p.y):
+                yield p
 
     def cast(self, x, y):
+        
+        if self.get_stat('shieldbreak'):
+            unit = self.caster.level.get_unit_at(x, y)
+            unit.shields -= self.get_stat('shieldbreak')
+            unit.shields = max(unit.shields, 0)
+    
         if not self.get_stat("combo"):
             yield from self.hammer(x, y)
         else:
@@ -1067,24 +1083,28 @@ class CrystalHammerSpell(Spell):
         glassify = unit.get_buff(GlassPetrifyBuff)
         if glassify:
             total_duration += glassify.turns_left
-        extra_damage = self.get_stat("extra_damage")
-        unit.deal_damage(self.get_stat("damage") + total_duration*extra_damage, Tags.Physical, self)
         
-        if glassify:
-            unit.remove_buff(glassify)
-        if freeze:
-            unit.remove_buff(freeze)
-        if self.get_stat("stun") and total_duration:
-            unit.apply_buff(Stun(), total_duration)
+        unit.deal_damage(self.get_stat("damage") + self.get_stat("first_hit_bonus"), Tags.Physical, self)
+        while unit.is_alive() and total_duration > 0:
+            unit.deal_damage(self.get_stat("damage"), Tags.Physical, self)
+            total_duration -= 1
 
-        if self.get_stat("shatter"):
-            radius = self.get_stat("radius", base=6)
-            for _ in range(total_duration + (math.ceil(unit.max_hp/20) if not unit.is_alive() else 0)):
-                targets = self.caster.level.get_units_in_ball(unit, radius)
-                targets = [t for t in targets if are_hostile(t, self.caster) and self.caster.level.can_see(t.x, t.y, unit.x, unit.y)]
-                if not targets:
-                    return
-                self.caster.level.queue_spell(self.bolt(unit, random.choice(targets), extra_damage))
+        if total_duration <= 0:
+            return
+        
+        num_targets = self.get_stat("num_targets")
+        for _ in range(total_duration):
+            units = self.owner.level.get_units_in_ball(unit, self.get_stat('radius'))
+            units = [u for u in units if (are_hostile(self.owner, u) and u.is_alive() and self.owner.level.can_see(x, y, u.x, u.y))]
+            if not units:
+                continue
+            random.shuffle(units)
+            for u in units[:num_targets]:
+                for p in self.owner.level.get_points_in_line(unit, u)[1:-1]:
+                    self.caster.level.show_effect(p.x, p.y, Tags.Ice, minor=True)
+                    self.caster.level.show_effect(p.x, p.y, Tags.Glassification)
+                u.deal_damage(self.get_stat("damage")//10, Tags.Physical, self)
+                yield
 
     def bolt(self, origin, target, damage):
         for p in Bolt(self.caster.level, origin, target):
@@ -3546,7 +3566,7 @@ class ChaosHailSpell(Spell):
         self.asset = ["MissingSynergies", "Icons", "chaos_hail"]
         self.tags = [Tags.Ice, Tags.Chaos, Tags.Enchantment]
         self.level = 5
-        self.max_charges = 2
+        self.max_charges = 4
         self.range = 0
 
         self.duration = 5
@@ -4897,6 +4917,16 @@ class AgonizingStormSpell(Spell):
 
         yield
 
+class AcidRain(Buff):
+
+    def on_init(self):
+        self.resists[Tags.Poison] = -10
+        self.name = "Acid Rain"
+        self.buff_type = BUFF_TYPE_CURSE
+        self.stack_type = STACK_INTENSITY
+        self.asset = ['status', 'amplified_poison']
+        self.color = Tags.Poison.color
+
 class NuclearWinter(Upgrade):
 
     def on_init(self):
@@ -4907,13 +4937,14 @@ class NuclearWinter(Upgrade):
         self.damage = 5
     
     def get_description(self):
-        return ("Each turn, enemies inside thunderstorm and blizzard clouds take [{damage}_poison:poison] damage.").format(**self.fmt_dict())
+        return ("Each turn, enemies inside thunderstorm and blizzard clouds permanently lose [10_poison:poison] resist and then take [{damage}_poison:poison] damage.").format(**self.fmt_dict())
 
     def on_advance(self):
         damage = self.get_stat("damage")
         for unit in [unit for unit in list(self.owner.level.units) if are_hostile(unit, self.owner)]:
             cloud = self.owner.level.tiles[unit.x][unit.y].cloud
             if isinstance(cloud, StormCloud) or isinstance(cloud, BlizzardCloud):
+                unit.apply_buff(AcidRain())
                 unit.deal_damage(damage, Tags.Poison, self)
 
 class DeliriumBuff(Buff):
@@ -4931,7 +4962,7 @@ class DeliriumBuff(Buff):
         self.stack_type = STACK_INTENSITY
         self.asset = ["MissingSynergies", "Statuses", "delirium"]
         self.color = Tags.Arcane.color
-        self.global_bonuses["damage"] = -1
+        self.global_bonuses["damage"] = -3
     
     def on_applied(self, owner):
         self.duration = self.turns_left
@@ -4955,8 +4986,8 @@ class WithdrawalBuff(Buff):
         self.color = Tags.Poison.color
     
     def on_advance(self):
-        self.owner.deal_damage(1, Tags.Poison, self.source)
-        self.owner.deal_damage(1, Tags.Arcane, self.source)
+        self.owner.deal_damage(2, Tags.Poison, self.source)
+        self.owner.deal_damage(2, Tags.Arcane, self.source)
 
 class PsychedelicPuff(SimpleRangedAttack):
 
@@ -5023,8 +5054,8 @@ class PsychedelicSporesSpell(Spell):
         return ("Summon a giant psychedelic mushboom with [{minion_health}_HP:minion_health].\n"
                 "It has an attack with [{minion_range}_range:minion_range], [1_radius:radius], and [3_turns:duration] cooldown that deals [{minion_damage}_poison:poison] and [{minion_damage}_arcane:arcane] damage and inflicts a stack of delirium for [{duration}_turns:duration] to enemies.\n"
                 "On death, it applies a stack of delirium with the same duration to adjacent enemies.\n"
-                "An enemy with delirium suffers a [-1:damage] penalty to all spell damage per stack.\n"
-                "When delirium is removed, it applies a stack of withdrawal, inflicting [1_poison:poison] and [1_arcane:arcane] damage per turn per stack.").format(**self.fmt_dict())
+                "An enemy with delirium suffers a [-3:damage] penalty to all spell damage per stack.\n"
+                "When delirium is removed, it applies a stack of withdrawal, inflicting [2_poison:poison] and [2_arcane:arcane] damage per turn per stack.").format(**self.fmt_dict())
 
     def cast_instant(self, x, y):
         unit = Unit()
@@ -5449,12 +5480,6 @@ class AfterlifeShadeBolt(SimpleRangedAttack):
 
     def __init__(self, damage, range):
         SimpleRangedAttack.__init__(self, "Twilight Bolt", damage=damage, damage_type=[Tags.Holy, Tags.Dark], range=range)
-        self.all_damage_types = True
-
-    def hit(self, x, y):
-        damage = self.get_stat("damage")
-        self.caster.level.deal_damage(x, y, damage, Tags.Dark, self)
-        self.caster.level.deal_damage(x, y, damage, Tags.Holy, self)
 
 class SoulShardBuff(Buff):
 
@@ -5475,17 +5500,17 @@ class AfterlifeEchoesSpell(Spell):
         self.name = "Afterlife Echoes"
         self.asset = ["MissingSynergies", "Icons", "afterlife_echoes"]
         self.tags = [Tags.Holy, Tags.Dark, Tags.Enchantment]
-        self.level = 4
+        self.level = 6
         self.max_charges = 3
         self.range = 0
 
-        self.duration = 15
+        self.duration = 5
         self.radius = 2
 
         self.upgrades["radius"] = (1, 3)
-        self.upgrades["duration"] = (15, 2)
+        self.upgrades["duration"] = (5, 2)
         self.upgrades["life"] = (1, 5, "Life Echoes", "When you summon a [living] or [nature] minion, that minion's death explosion will [poison] enemies for a number of turns equal to 50% of its max HP.\nIf an enemy is already [poisoned], any excess duration will be dealt as [poison] damage.", "echo")
-        self.upgrades["spirit"] = (1, 5, "Spirit Echoes", "When you summon a [holy], [demon], or [undead] minion, that minion's death explosion will summon an Afterlife Shade with the same max HP for [{minion_duration}_turns:minion_duration] on a random tile.\nThe Afterlife Shade has an attack with [{minion_range}_range:minion_range] that deals [holy] and [dark] damage equal to [{minion_damage}:minion_damage] plus 10% of its max HP.", "echo")
+        self.upgrades["spirit"] = (1, 5, "Spirit Echoes", "When you summon a [holy], [demon], or [undead] minion, that minion's death explosion will summon an Afterlife Shade with the same max HP for [{minion_duration}_turns:minion_duration] on a random tile.\nThe Afterlife Shade has an attack with [{minion_range}_range:minion_range] that deals [holy] or [dark] damage equal to [{minion_damage}:minion_damage] plus 10% of its max HP.", "echo")
         self.upgrades["elemental"] = (1, 5, "Elemental Echoes", "When you summon a [fire], [lightning], or [ice] minion, that minion's death explosion has a chance to cast Fireball, Lightning Bolt, or Icicle respectively at valid enemy targets.\nA minion with multiple tags will try to cast every qualifying spell independently in random order.\nThe chance to cast is the minion's max HP divided by 40, with an extra guaranteed cast per 40 HP the minion has.\nThese spells gain all of your upgrades and bonuses.", "echo")
         self.upgrades["shattering"] = (1, 5, "Shattering Echoes", "When you summon an [arcane], [metallic], or [glass] minion, that minion's death explosion will summon a Soul Shard on a random tile for every 20 HP and [2_SH:shields] the minion has, rounded up.\nSoul Shards have fixed 1 HP and [1_SH:shields], and teleport to random tiles each turn. They deal [2_physical:physical] or [2_arcane:arcane] damage to enemies that hit them.", "echo")
 
@@ -6396,13 +6421,14 @@ class DeathMetalSpell(Spell):
         self.asset = ["MissingSynergies", "Icons", "death_metal"]
         self.tags = [Tags.Metallic, Tags.Dark, Tags.Conjuration]
         self.level = 6
-        self.max_charges = 3
+        self.max_charges = 2
         self.range = 0
+        self.max_channel = 10
 
         self.minion_health = 78
-        self.minion_damage = 13
+        self.minion_damage = 10
         self.minion_range = 7
-        self.minion_duration = 3
+        self.minion_duration = 2
         self.num_summons = 4
 
         self.upgrades["num_summons"] = (2, 3, "Num Summons", "Up to [2:num_summons] more metalheads can be summoned.")
@@ -6410,14 +6436,14 @@ class DeathMetalSpell(Spell):
         self.upgrades["discord"] = (1, 6, "Discordian Tune", "Each turn, each enemy has a 25% chance to take [1_dark:dark] or [1_physical:physical] damage.\nEnemies that take [physical] damage are [stunned] for [1_turn:duration].\nEnemies that take [dark] damage go [berserk] for [1_turn:duration].\nThese durations are fixed and unaffected by bonuses.")
 
     def get_description(self):
-        return ("Channel this spell to create aggressive otherworldly music each turn to summon a metalhead near you and increase the remaining durations of all metalheads by [1_turn:minion_duration].\n"
+        return ("Channel this spell up to 10 turns to summon a metalhead near you and increase the remaining durations of all metalheads by [1_turn:minion_duration].\n"
                 "Metalheads are stationary flying [metallic] [undead] minions with [{minion_health}_HP:minion_health] that last [{minion_duration}_turns:minion_duration]. They have wailing attack that deal [{minion_damage}_dark:dark] damage to enemies in a [{minion_range}_tile:minion_range] cone, and headbanging leap attacks that deal [{minion_damage}_physical:physical] with double the range.\n"
                 "At most [{num_summons}:num_summons] metalheads can be summoned.\n").format(**self.fmt_dict())
 
     def cast(self, x, y, channel_cast=False):
 
         if not channel_cast:
-            self.caster.apply_buff(ChannelBuff(self.cast, Point(x, y)))
+            self.caster.apply_buff(ChannelBuff(self.cast, Point(x, y)), self.get_stat('max_channel'))
             return
 
         minion_duration = self.get_stat("minion_duration")
@@ -6805,6 +6831,14 @@ class CosmicStasisBuff(FrozenBuff):
         self.conversions[Tags.Ice][Tags.Arcane] = 0.5
 
     def on_advance(self):
+    
+        possible_targets = self.owner.level.units
+        possible_targets = [t for t in possible_targets if self.owner.level.are_hostile(t, self.owner)]
+        possible_targets = [t for t in possible_targets if self.owner.level.can_see(t.x, t.y, self.owner.x, self.owner.y)]
+        
+        if possible_targets:
+            target = random.choice(possible_targets)
+            self.owner.level.queue_spell(self.shoot(Point(target.x, target.y)))
 
         everlasting = self.spell.get_stat("everlasting")
         enduring = self.spell.get_stat("enduring")
@@ -6831,6 +6865,16 @@ class CosmicStasisBuff(FrozenBuff):
                 continue
             self.owner.level.act_cast(self.owner, spell, target.x, target.y)
             break
+            
+    def shoot(self, target):
+        self.owner.level.show_effect(0, 0, Tags.Sound_Effect, 'sorcery_ally')
+        path = self.owner.level.get_points_in_line(Point(self.owner.x, self.owner.y), target, find_clear=True)
+
+        for point in path:
+            self.owner.level.deal_damage(point.x, point.y, 0, Tags.Ice, self.spell)
+            yield 
+
+        self.owner.level.deal_damage(target.x, target.y, self.spell.get_stat('damage'), Tags.Ice, self.spell)
 
     def on_buff_remove(self, evt):
         if not isinstance(evt.buff, FrozenBuff) or not evt.buff.turns_left:
@@ -6862,6 +6906,7 @@ class CosmicStasisSpell(Spell):
         self.max_charges = 5
         self.range = 0
         self.duration = 5
+        self.damage = 20
 
         self.upgrades["duration"] = 3
         self.upgrades['max_charges'] = (3, 2)
@@ -6871,7 +6916,7 @@ class CosmicStasisSpell(Spell):
     
     def get_description(self):
         return ("[Freeze] yourself for [{duration}_turns:duration].\n"
-                "For the duration, you gain [100_ice:ice], [100_fire:fire], [100_physical:physical], and [100_arcane:arcane] resistance.\n"
+                "For the duration, you gain [100_ice:ice], [100_fire:fire], [100_physical:physical], and [100_arcane:arcane] resistance, and each turn you fire an ice bolt at an enemy in line of sight dealing [{damage}_ice:ice] damage.\n"
                 "Half of all [ice] damage dealt to enemies during this time will be redealt as [arcane] damage.").format(**self.fmt_dict())
 
     def cast_instant(self, x, y):
@@ -8115,7 +8160,7 @@ class FadingBuff(Buff):
         return self.spell.get_stat("damage") > 0
 
     def on_applied(self, owner):
-        self.owner.turns_to_death = math.ceil(self.owner.max_hp/self.spell.get_stat("damage"))
+        self.owner.turns_to_death = self.owner.shields + math.ceil(self.owner.max_hp/self.spell.get_stat("damage"))
     
     def on_advance(self):
         # Could happen if a minion is berserked, applied with fading, recovers from berserk, then given Heart of Winter.
@@ -8124,7 +8169,7 @@ class FadingBuff(Buff):
         damage = self.spell.get_stat("damage")
         self.give_essence(damage)
         if self.spell.get_stat("haste"):
-            curr = math.ceil(self.owner.cur_hp/damage)
+            curr = self.owner.shields + math.ceil(self.owner.cur_hp/damage)
             if curr < self.owner.turns_to_death:
                 self.owner.turns_to_death = curr
         if self.spell.get_stat("agony"):
@@ -8141,7 +8186,7 @@ class FadingBuff(Buff):
             self.give_essence(damage)
 
     def give_essence(self, damage):
-        self.spell.caster.apply_buff(StolenEssenceBuff(), math.ceil(damage/10))
+        self.spell.caster.apply_buff(StolenEssenceBuff(), math.ceil(damage/self.spell.get_stat("leechDivisor")))
 
 class StolenEssenceBuff(Buff):
     
@@ -8168,29 +8213,37 @@ class EssenceLeechSpell(Spell):
         self.name = "Essence Leech"
         self.asset = ["MissingSynergies", "Icons", "essence_leech"]
         self.tags = [Tags.Arcane, Tags.Dark, Tags.Enchantment]
-        self.level = 4
-        self.max_charges = 7
-        self.range = 9
-        self.damage = 10
-        self.radius = 3
+        self.level = 2
+        self.max_charges = 10
+        self.range = 10
+        self.damage = 20
+        self.leechDivisor = 4
         self.requires_los = False
 
-        self.upgrades["max_charges"] = (7, 4)
-        self.upgrades["radius"] = (2, 3)
-        self.upgrades["agony"] = (1, 3, "Fading Agony", "Fading enemies behave as if they have taken [arcane] damage each turn equal to this spell's [damage] stat, ignoring immunity and triggering all effects that are normally triggered when enemies are damaged.")
-        self.upgrades["haste"] = (1, 4, "Hastened Demise", "Each turn, if a fading unit's current HP divided by this spell's [damage] stat is less than its remaining duration, its remaining duration is reduced to this value.\nIf a fading unit dies before its remaining duration expires, you immediately gain Stolen Essence equal to what you could have gained from all of its remaining turns.")
-        self.upgrades["dry"] = (1, 3, "Leech Dry", "When affecting an enemy that is already fading, you will immediately gain Stolen Essence equal to 25% of the total amount you could have gained from its whole lifetime.")
+        self.upgrades["max_charges"] = (10, 2)
+        self.upgrades["range"] = (5, 2)
+        self.upgrades["agony"] = (1, 2, "Fading Agony", "Fading enemies behave as if they have taken [arcane] damage each turn equal to this spell's [damage] stat, ignoring immunity and triggering all effects that are normally triggered when enemies are damaged.")
+        self.upgrades["haste"] = (1, 2, "Hastened Demise", "Each turn, if a fading unit's current HP divided by this spell's [damage] stat is less than its remaining duration, its remaining duration is reduced to this value.\nIf a fading unit dies before its remaining duration expires, you immediately gain Stolen Essence equal to what you could have gained from all of its remaining turns.")
+        self.upgrades["dry"] = (1, 1, "Leech Dry", "When affecting an enemy that is already fading, you will immediately gain Stolen Essence equal to 25% of the total amount you could have gained from its whole lifetime.")
 
     def get_description(self):
-        return ("Drain essence from enemies in a [{radius}_tile:radius] radius, causing them to begin fading, automatically dying after a number of turns equal to their max HP divided [{damage}:arcane], rounded up, as if they are temporarily summoned units. This number benefits from this spell's bonuses to [damage].\n"
-                "Each turn, each fading enemy grants you 1 turn of Stolen Essence per 10 [damage] this spell has, rounded up. Your temporary minions will expend remaining duration of Stolen Essence before their own remaining lifetimes.\n"
-                "Temporary enemies are instantly killed, and their remaining lifetimes given to you as Stolen Essence.").format(**self.fmt_dict())
+        return ("Drain essence from an enemy, causing it to begin fading, automatically dying after a number of turns equal to its max HP divided [{damage}:arcane] plus its SH, rounded up, as if it were a temporarily summoned unit. This number benefits from this spell's bonuses to [damage].\n"
+                "Each turn, each fading enemy grants you 1 turn of Stolen Essence per %d [damage] this spell has, rounded up. Your temporary minions will expend remaining duration of Stolen Essence before their own remaining lifetimes.\n"
+                "Temporary enemies are instantly killed, and their remaining lifetimes given to you as Stolen Essence." % self.leechDivisor).format(**self.fmt_dict())
+                
+    def can_cast(self, x, y):
+        unit = self.caster.level.get_unit_at(x, y)
+        if unit is None:
+            return False
+        if not are_hostile(unit, self.caster):
+            return False
+        return Spell.can_cast(self, x, y)
 
     def cast_instant(self, x, y):
-        for unit in self.owner.level.get_units_in_ball(Point(x, y), self.get_stat("radius")):
-            if not are_hostile(unit, self.caster):
-                continue
-            unit.apply_buff(FadingBuff(self))
+        target = self.caster.level.get_unit_at(x, y)
+        if not target:
+            return
+        target.apply_buff(FadingBuff(self))
 
 class BloodyMassBuff(Buff):
 
@@ -8565,7 +8618,7 @@ class WebOfFireSpell(Spell):
         self.tags = [Tags.Nature, Tags.Fire, Tags.Sorcery]
         self.level = 3
         self.max_charges = 9
-        self.damage = 8
+        self.damage = 16
         self.range = 10
 
         self.upgrades["max_charges"] = (9, 2)
@@ -9087,6 +9140,8 @@ class ConfusionSpell(SimpleCurse):
         unit = self.caster.level.get_unit_at(x, y)
         if not unit:
             return False
+        if unit.is_player_controlled:
+            return False
         if unit:
             existing = unit.get_buff(ConfusionBuff)
             if not existing:
@@ -9100,15 +9155,15 @@ class XenodruidFormSpell(Spell):
         self.asset = ["MissingSynergies", "Icons", "xenodruid_form"]
         self.tags = [Tags.Arcane, Tags.Enchantment, Tags.Conjuration]
         self.level = 7
-        self.max_charges = 3
+        self.max_charges = 2
         self.range = 0
 
-        self.minion_health = 40
+        self.minion_health = 25
         self.minion_duration = 10
         self.minion_range = 12
         self.confusion_timer = 16
         self.num_summons = 2
-        self.duration = 15
+        self.duration = 12
         self.damage = 20
 
         self.upgrades["minion_duration"] = (5, 3)
@@ -9168,14 +9223,14 @@ class FleshLoan(Upgrade):
         self.asset = ["MissingSynergies", "Icons", "flesh_loan"]
         self.tags = [Tags.Dark, Tags.Nature]
         self.level = 4
-        self.description = "Whenever you summon a minion, you take [dark] damage equal to 5% of the minion's max HP, rounded up. If the damage taken is not 0, that minion becomes [living] and gains max and current HP equal to 5 times the damage dealt. This effect triggers before most other effects that trigger when minions are summoned.\nEach minion can only benefit from this upgrade once.\nAt the beginning of each of your turns, if a minion is no longer alive, or if there are no enemies in the realm, you heal for the same damage that you took when summoning it, once per minion."
+        self.description = "Whenever you summon a minion, you take [dark] damage equal to 20% of the minion's max HP, rounded up. If the damage taken is not 0, that minion becomes [living] and gains max and current HP equal to 5 times the damage dealt. This effect triggers before most other effects that trigger when minions are summoned.\nEach minion can only benefit from this upgrade once.\nAt the beginning of each of your turns, if a minion is no longer alive, or if there are no enemies in the realm, you heal for the same damage that you took when summoning it, once per minion."
         self.hp_loaned = {}
         self.global_triggers[EventOnUnitPreAdded] = self.on_unit_pre_added
     
     def on_unit_pre_added(self, evt):
         if are_hostile(evt.unit, self.owner) or evt.unit.is_player_controlled or hasattr(evt.unit, "flesh_loaned"):
             return
-        dealt = self.owner.deal_damage(math.ceil(evt.unit.max_hp/20), Tags.Dark, self)
+        dealt = self.owner.deal_damage(math.ceil(evt.unit.max_hp/5), Tags.Dark, self)
         if not dealt:
             return
         evt.unit.max_hp += dealt*5
@@ -9793,53 +9848,60 @@ class TeleFrag(Upgrade):
             return
         evt.unit.deal_damage(self.get_stat("max_charges"), Tags.Physical, self)
 
-class ThermalGradientBuff(FreezeDependentBuff):
+class ThermalWeaknessBuff(Buff):
+
+    def __init__(self, resist):
+        self.resist = resist
+        Buff.__init__(self)
 
     def on_init(self):
-        self.name = "Thermal Gradient"
+        self.name = "Thermal Weakness"
         self.color = Tags.Fire.color
         self.buff_type = BUFF_TYPE_CURSE
         self.asset = ["MissingSynergies", "Statuses", "amplified_fire"]
-        self.resists[Tags.Fire] = -100
+        for tag in [Tags.Fire, Tags.Ice]:
+            self.resists[tag] = -self.resist
 
-class ThermalImbalanceBuff(DamageAuraBuff):
+class ThermalImbalanceBuff(Buff):
 
     def __init__(self, spell):
-        DamageAuraBuff.__init__(self, damage=2, damage_type=[Tags.Fire, Tags.Ice], radius=spell.get_stat("radius"))
         self.source = spell
-        self.name = "Thermal Imbalance"
-        self.color = Tags.Ice.color
-        self.entropy = spell.get_stat("entropy")
-        self.gradient = spell.get_stat("gradient")
-        self.stack_type = STACK_REPLACE
-        self.global_triggers[EventOnBuffApply] = self.on_buff_apply
-        self.global_triggers[EventOnBuffRemove] = self.on_buff_remove
+        Buff.__init__(self)
 
-    def on_advance(self):
-        if not self.entropy:
-            return
-        DamageAuraBuff.on_advance(self)
+    def on_init(self):
+        self.name = "Thermal Imbalance"
+        self.damage = self.source.get_stat("damage")
+        self.duration = self.source.get_stat("duration")
+        self.buff_type = BUFF_TYPE_CURSE
+        self.asset = ["MissingSynergies", "Statuses", "amplified_ice"]
+        self.color = Tags.Ice.color
+        
+        self.owner_triggers[EventOnBuffApply] = self.on_buff_apply
+        self.owner_triggers[EventOnDamaged] = self.on_damaged
+    
+    def on_applied(self, owner):
+        freeze = self.owner.get_buff(FrozenBuff)
+        if freeze:
+            self.owner.level.queue_spell(self.freeze_burn(freeze.turns_left))
+            return ABORT_BUFF_APPLY
     
     def on_buff_apply(self, evt):
-        if distance(evt.unit, self.owner) > self.radius:
+        if not isinstance(evt.buff, FrozenBuff) or evt.buff.turns_left <= 0:
             return
-        if not isinstance(evt.buff, FrozenBuff) or not are_hostile(evt.unit, self.owner) or evt.buff.turns_left <= 0:
+        freeze = self.owner.get_buff(FrozenBuff)
+        if freeze:
+            self.owner.remove_buff(self)
+            self.owner.level.queue_spell(self.freeze_burn(freeze.turns_left))
+            
+    def freeze_burn(self, turns):
+        self.owner.deal_damage(self.damage * turns, Tags.Fire, self.source)
+        yield
+            
+    def on_damaged(self, evt):
+        if evt.damage_type != Tags.Fire:
             return
-        if self.gradient:
-            evt.unit.apply_buff(ThermalGradientBuff(), evt.buff.turns_left)
-        evt.unit.deal_damage(evt.buff.turns_left, Tags.Fire, self.source)
-
-    def on_buff_remove(self, evt):
-        if distance(evt.unit, self.owner) > self.radius:
-            return
-        if not isinstance(evt.buff, FrozenBuff) or not are_hostile(evt.unit, self.owner) or evt.buff.turns_left <= 0:
-            return
-        evt.unit.deal_damage(evt.buff.turns_left, Tags.Ice, self.source)
-
-    def get_tooltip(self):
-        if not self.entropy:
-            return ""
-        return DamageAuraBuff.get_tooltip(self)
+        self.owner.remove_buff(self)
+        self.owner.apply_buff(FrozenBuff(), self.duration)
 
 class ThermalImbalanceSpell(Spell):
 
@@ -9847,25 +9909,32 @@ class ThermalImbalanceSpell(Spell):
         self.name = "Thermal Imbalance"
         self.asset = ["MissingSynergies", "Icons", "thermal_imbalance"]
         self.tags = [Tags.Fire, Tags.Ice, Tags.Enchantment]
-        self.level = 6
-        self.max_charges = 3
-        self.range = 0
-        self.radius = 7
-        self.duration = 5
+        self.level = 5
+        self.max_charges = 4
+        self.damage = 16
+        self.range = 10
+        self.radius = 3
+        self.duration = 3
+        self.requires_los = False
+        self.resistance_debuff = 0
 
-        self.upgrades["duration"] = (5, 3)
-        self.upgrades["radius"] = (3, 2)
-        self.upgrades["entropy"] = (1, 3, "Thermal Entropy", "Each turn, enemies inside this spell's radius also take [2_fire:fire] or [2_ice:ice] damage.\nThis damage is fixed, and cannot be increased using shrines, skills, or buffs.")
-        self.upgrades["gradient"] = (1, 5, "Thermal Gradient", "When an enemy inside this spell's radius is [frozen], before it takes [fire] damage from this spell, it loses [100_fire:fire] resistance for a duration equal to the [freeze] duration.\nWhenever the remaining duration of [freeze] on an enemy is refreshed or extended, the remaining duration of thermal gradient will be lengthened to match if it is shorter.\nIf thermal gradient is removed prematurely and the enemy is still [frozen], it will automatically reapply itself.")
+        self.upgrades["damage"] = (10, 3)
+        self.upgrades["duration"] = (2, 2)
+        self.upgrades["radius"] = (2, 3)
+        self.upgrades["resistance_debuff"] = (50, 5, "Thermal Weakness", "Also permanently afflicts enemies with a non-stacking -50 to [fire] and [ice] resist.")
 
     def get_description(self):
-        return ("Thermal energy becomes imbalanced in a radius of [{radius}_tiles:radius] around yourself.\n"
-                "Whenever an enemy in the area is [frozen], it takes [fire] damage equal to the [freeze] duration.\n"
-                "Whenever an enemy in the area recovers from [freeze], it takes [ice] damage equal to the remaining [freeze] duration.\n"
-                "Lasts [{duration}_turns:duration].").format(**self.fmt_dict())
+        return ("Permanently afflict all enemies in a [{radius}_tile:radius] radius with thermal imbalance.\n"
+                "Whenever an afflicted enemy is [frozen] or a [frozen] enemy is afflicted, its thermal imbalance is consumed to immediately deal [{damage}_fire:fire] damage per turn of [freeze].\n"
+                "Whenever an afflicted enemy is dealt [fire] damage, its thermal imbalance is consumed to [freeze] it for [{duration}_turns:duration].").format(**self.fmt_dict())
 
     def cast_instant(self, x, y):
-        self.caster.apply_buff(ThermalImbalanceBuff(self), self.get_stat("duration"))
+        for unit in self.owner.level.get_units_in_ball(Point(x, y), self.get_stat("radius")):
+            if not are_hostile(unit, self.caster):
+                continue
+            if self.get_stat("resistance_debuff") > 0:
+                unit.apply_buff(ThermalWeaknessBuff(self.get_stat("resistance_debuff")))
+            unit.apply_buff(ThermalImbalanceBuff(self))
 
 class TrickWalk(Upgrade):
 
@@ -10065,7 +10134,7 @@ class MadMaestroSpell(Spell):
         self.asset = ["MissingSynergies", "Icons", "mad_maestro"]
         self.tags = [Tags.Dark, Tags.Lightning, Tags.Conjuration]
         self.level = 5
-        self.max_charges = 6
+        self.max_charges = 2
         self.can_target_self = True
 
         self.minion_health = 72
@@ -10105,7 +10174,7 @@ class MadMaestroSpell(Spell):
                 break
         if existing:
             for u in [u for u in self.caster.level.get_units_in_los(existing) if are_hostile(self.caster, u)]:
-                u.apply_buff(BerserkBuff(), 1)
+                u.apply_buff(BerserkBuff(), 3)
             return
         
         unit = Unit()
@@ -11486,11 +11555,12 @@ class CarcinizationPassive(Buff):
     def on_init(self):
         self.buff_type = BUFF_TYPE_PASSIVE
         self.color = Tags.Nature.color
-        self.description = "On death, evolve into a crab."
+        self.description = "When lifetime expires, evolve into a crab."
         self.owner_triggers[EventOnDeath] = self.on_death
     
     def on_death(self, evt):
-        self.owner.level.queue_spell(self.evolve())
+        if self.owner.turns_to_death == 0:
+            self.owner.level.queue_spell(self.evolve())
     
     def evolve(self):
 
@@ -11568,7 +11638,7 @@ class CarcinizationSpell(Spell):
         return stats
     
     def get_description(self):
-        return ("For [{duration}_turns:duration], whenever you summon a temporary minion, it gains the ability to evolve into a crab with the same max HP on death.\n"
+        return ("For [{duration}_turns:duration], whenever you summon a temporary minion, it gains the ability to evolve into a crab with the same max HP when its lifetime expires.\n"
                 "The crab is a [living] [nature] [ice] minion with [50_physical:physical] and [50_ice:ice] resistance. It has a melee attack that attacks twice, each dealing [physical] damage equal to [{minion_damage}:minion_damage] plus 10% of the crab's initial max HP").format(**self.fmt_dict())
 
     def cast_instant(self, x, y):
@@ -11694,7 +11764,6 @@ class LiquidLightningBuff(Buff):
             self.flip = False
         self.owner.level.event_manager.raise_event(EventOnUnitPreAdded(self.owner), self.owner)
         self.owner.level.event_manager.raise_event(EventOnUnitAdded(self.owner), self.owner)
-        yield
 
     def on_unapplied(self):
         if not self.originally_lightning and Tags.Lightning in self.owner.tags:
@@ -12732,7 +12801,7 @@ class BloodFodder(Upgrade):
     def on_advance(self):
         if all([u.team == TEAM_PLAYER for u in self.owner.level.units]):
             return
-        max_num = (self.owner.max_hp - self.owner.cur_hp)//5
+        max_num = (self.owner.max_hp - self.owner.cur_hp)//10
         cur_num = len([u for u in self.owner.level.units if u.source is self])
         for _ in range(max_num - cur_num):
             unit = Goblin()
@@ -12747,7 +12816,7 @@ class BloodFodder(Upgrade):
             self.summon(unit, radius=RANGE_GLOBAL, sort_dist=False)
     
     def get_description(self):
-        return ("You are accompanied by a number of hemogoblins equal to your missing HP divided by 5, which are replenished to the maxumum number each turn and summoned onto random tiles.\n"
+        return ("You are accompanied by a number of hemogoblins equal to your missing HP divided by 10, which are replenished to the maxumum number each turn and summoned onto random tiles.\n"
                 "Hemogoblins are [nature] [demon] minions with [{minion_health}_HP:minion_health]. Their melee attacks deal [{minion_damage}_physical:physical] damage, and grant the attacker bloodrage for [{duration}_turns:duration] on hit, increasing all damage by 1.").format(**self.fmt_dict())
 
 class ExorbitantPower(Upgrade):
@@ -12997,7 +13066,7 @@ class RealityFeintBuff(Soulbound):
         self.owner.level.queue_spell(self.feint())
 
     def unfeint(self):
-        self.owner.deal_damage(-self.owner.max_hp if self.ultimate else -self.damage, Tags.Heal, self.spell)
+        self.owner.deal_damage(-self.owner.max_hp if self.ultimate else -self.damage, Tags.Arcane, self.spell)
         if not self.ultimate:
             return
         old_shields = self.owner.shields
@@ -13277,17 +13346,26 @@ class EyeBleach(Upgrade):
         self.asset = ["MissingSynergies", "Icons", "eye_bleach"]
         self.tags = [Tags.Holy]
         self.level = 4
-        self.description = "At the beginning of each of your turns, each [blind] enemy takes [holy] damage equal to its [blind] duration, then its [blind] duration is reduced to [1_turn:duration]."
+        self.damage = 12
+        self.global_triggers[EventOnBuffApply] = self.on_buff_apply
+        
+    def get_description(self):
+        return ("When an unblinded enemy becomes [blind], deal [{damage}_holy:holy] damage to it.\n"
+        "Each turn all [blind] enemies take an additional [2_holy:holy] damage.\n"
+        "This additional damage is fixed, and cannot be increased using shrines, skills, or buffs.").format(**self.fmt_dict())
+        
+    def on_buff_apply(self, evt):
+        if isinstance(evt.buff, BlindBuff) and are_hostile(evt.unit, self.owner):
+            evt.unit.deal_damage(self.get_stat('damage'), Tags.Holy, self)
 
-    def on_pre_advance(self):
+    def on_advance(self):
         for u in list(self.owner.level.units):
             if not are_hostile(u, self.owner):
                 continue
             buff = u.get_buff(BlindBuff)
             if not buff:
                 continue
-            u.deal_damage(buff.turns_left, Tags.Holy, self)
-            buff.turns_left = 1
+            u.deal_damage(2, Tags.Holy, self)
 
 class AntimatterInfusion(Upgrade):
 

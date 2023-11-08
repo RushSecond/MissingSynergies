@@ -1,0 +1,63 @@
+------ NERFS
+
+- Xenodruid: minion hp 40 -> 25, charges 3 -> 2, confusion spell cannot be applied to player (if unit.is_player_controlled: return False)
+
+- DeathMetal: minion duration 3 -> 2, minion damage 13 -> 10, max channel inf -> 10
+
+- Mad Maestro: charges 6 -> 2, berserk duration on alt cast 1 - > 3
+
+- Blade Rush: charge 9 -> 5, range 15 -> 10
+
+- Blood Fodder: 1 goblin per 5 hp lost -> 10 hp lost (cost 4->5?)
+
+- Carcinization: crab is only created if a unit dies to timeout, not if it is killed any other way (cost 5-> 4?)
+
+- Afterlife Echoes: cost 4 -> 6, duration & duration upgrade 15 -> 5, spirit echoes upgrade spirits deal holy OR dark damage, not both (nerf more??)
+
+- Essence Leech: level 2 and damage increased to 20, charges increased to 10, gives 1 essence per 4 damage, but is single-target and each SH adds 1 lifetime to enemies. radius upgrade changed to range, all upgrades cost reduced by 1 or 2
+
+------ BUFFS
+
++ Web of Fire: damage 8 -> 16
+
++ Psychadelic Shroom: delirium reduces damage by 3, withdrawal deals 2 arcane and 2 poison damage
+
++ Reality Feint: now does an "arcane heal" which bypasses healing reduction
+
++ Wild Hunt: cost 4-> 2
+
++ Chaos Hail: charges 2 -> 4
+
++ Cosmic Stasis: added 20 ice damage every turn
+
++ Crystal Hammer reworked: 
+deals 54 damage, plus an additional 24 damage hit for each turn of freeze and glassify.
+If the target dies, any unneeded hits are released as shards that deal 10% of the damage to up to 4 targets within 6 radius. 
+Both damages can be increased by buffs, skills, and shrines.
+Upgrades ---
+Damage: +16 damage
+Num targets: +4 targets hit by shards
+Combo: Same as before
+Shieldbreaker: target loses 8 SH before being hit
+
++ Irradiate deals both 2 arcane and 2 poison
+
++ Liquid lightning actually works now
+
++ Thermal Imbalance: reworked
+level 5, 4 charges
+Permanently afflict all enemies in a 4 tile radius with thermal imbalance
+When an afflicted enemy is frozen or a frozen enemy is afflicted, its thermal imbalance is removed to immediately deal 16 fire damage per turn of freeze
+When an afflicted enemy is dealt fire damage, its thermal imbalance is removed to freeze it for 3 turns.
+Upgrades ---
+Damage: +10 damage
+Duration: +2 duration
+Radius: +2 radius
+Resistances: also permanently applies a non-stacking -50 fire and ice resistance
+
++ Eye Bleach deals 12 damage when blind is applied, then 2 flat damage a turn
+
++ Flesh Loan 5% damage -> 20% damage taken, now minions gain double hp as a result
+
++ Nuclear winter enemies lose 10 poison resist permanently as well
+
