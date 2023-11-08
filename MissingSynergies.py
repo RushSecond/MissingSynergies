@@ -1012,18 +1012,20 @@ class CrystalHammerSpell(Spell):
         self.level = 5
         self.max_charges = 6
         self.range = 8
-        self.damage = 100
-        self.extra_damage = 10
+        self.damage = 32
+        self.num_targets = 4
+        self.radius = 6
+        self.shieldbreak = 0
         self.can_target_empty = False
         
-        self.upgrades["extra_damage"] = (5, 3, "Extra Damage", "+5 extra damage per turn of [freeze] and [glassify].")
-        self.upgrades["stun"] = (1, 3, "Stunning Blow", "The target is also [stunned] for a duration equal to the total duration of [freeze] and [glassify] on the target.")
+        self.upgrades["damage"] = (24, 3)
+        self.upgrades["num_targets"] = (4, 3)
         self.upgrades["combo"] = (1, 4, "Hammer Combo", "If you know the Freeze spell, you will also cast it on the same target when you cast Crystal Hammer, before the hammer hits, if possible.\nIf you know the Petrify spell with the Glassify upgrade, you will also cast it on the same target when you cast Crystal Hammer, before the hammer hits, if possible.")
-        self.upgrades["shatter"] = (1, 7, "Shatter", "On hit, Crystal Hammer will also release a number of shards equal to the total duration of [frozen] and [glassify] on the target. If the target is killed, increase the number of shards by 1 per 20 max HP the target had, rounded up.\nEach shard targets a random enemy in a [{radius}_tile:radius] burst and deals [physical] damage equal to this spell's extra damage.\nThe same enemy can be hit more than once, and the original target can also be hit.\nThis occurs after [freeze] and [glassify] are removed from the original target.")
+        self.upgrades["shieldbreak"] = (8, 2, "Shield Breaker", "Crystal Hammer removes up to 8 SH from the target before dealing damage.")
     
     def get_description(self):
-        return ("Deal [{damage}_physical:physical] damage to the target. For every turn of [freeze] and [glassify] on the target, the damage is increased by [{extra_damage}:physical].\n"
-                "Remove all [freeze] and [glassify] on the target afterwards.").format(**self.fmt_dict())
+        return ("Deal [{damage}_physical:physical] damage to the target. For every turn of [freeze] and [glassify] on the target, deal [{damage}_physical:physical] damage an additional time.\n"
+                "If the target dies, any unused hits are released as shards that deal 25% of the [damage] to up to [{num_targets}:num_targets] random enemies in a [{radius}_tile:radius] radius.").format(**self.fmt_dict())
     
     def fmt_dict(self):
         stats = Spell.fmt_dict(self)
@@ -1031,6 +1033,12 @@ class CrystalHammerSpell(Spell):
         return stats
 
     def cast(self, x, y):
+        
+        if self.get_stat('shieldbreak'):
+            unit = self.caster.level.get_unit_at(x, y)
+            unit.shields -= self.get_stat('shieldbreak')
+            unit.shields = max(unit.shields, 0)
+    
         if not self.get_stat("combo"):
             yield from self.hammer(x, y)
         else:
@@ -1061,31 +1069,34 @@ class CrystalHammerSpell(Spell):
         if not unit:
             return
         
-        total_duration = 0
+        total_duration = 1
         freeze = unit.get_buff(FrozenBuff)
         if freeze:
             total_duration += freeze.turns_left
         glassify = unit.get_buff(GlassPetrifyBuff)
         if glassify:
             total_duration += glassify.turns_left
-        extra_damage = self.get_stat("extra_damage")
-        unit.deal_damage(self.get_stat("damage") + total_duration*extra_damage, Tags.Physical, self)
         
-        if glassify:
-            unit.remove_buff(glassify)
-        if freeze:
-            unit.remove_buff(freeze)
-        if self.get_stat("stun") and total_duration:
-            unit.apply_buff(Stun(), total_duration)
+        while unit.is_alive() and total_duration > 0:
+            unit.deal_damage(self.get_stat("damage"), Tags.Physical, self)
+            total_duration -= 1
 
-        if self.get_stat("shatter"):
-            radius = self.get_stat("radius", base=6)
-            for _ in range(total_duration + (math.ceil(unit.max_hp/20) if not unit.is_alive() else 0)):
-                targets = self.caster.level.get_units_in_ball(unit, radius)
-                targets = [t for t in targets if are_hostile(t, self.caster) and self.caster.level.can_see(t.x, t.y, unit.x, unit.y)]
-                if not targets:
-                    return
-                self.caster.level.queue_spell(self.bolt(unit, random.choice(targets), extra_damage))
+        if unit.is_alive():
+            return
+        
+        num_targets = self.get_stat("num_targets")
+        for _ in range(total_duration):
+            units = self.owner.level.get_units_in_ball(unit, self.get_stat('radius'))
+            units = [u for u in units if (are_hostile(self.owner, u) and u.is_alive())]
+            if not units:
+                continue
+            random.shuffle(units)
+            for u in units[:num_targets]:
+                for p in self.owner.level.get_points_in_line(unit, u)[1:-1]:
+                    self.caster.level.show_effect(p.x, p.y, Tags.Ice, minor=True)
+                    self.caster.level.show_effect(p.x, p.y, Tags.Glassification)
+                u.deal_damage(self.get_stat("damage")//4, Tags.Physical, self)
+                yield
 
     def bolt(self, origin, target, damage):
         for p in Bolt(self.caster.level, origin, target):
