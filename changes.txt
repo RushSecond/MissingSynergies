@@ -32,7 +32,7 @@
 
 + Crystal Hammer reworked: 
 deals 54 damage, plus an additional 24 damage hit for each turn of freeze and glassify.
-If the target dies, any unneeded hits are released as shards that deal 25% of the damage to up to 4 targets within 6 radius. 
+If the target dies, any unneeded hits are released as shards that deal 10% of the damage to up to 4 targets within 6 radius. 
 Both damages can be increased by buffs, skills, and shrines.
 Upgrades ---
 Damage: +16 damage

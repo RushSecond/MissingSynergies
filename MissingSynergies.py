@@ -1025,8 +1025,8 @@ class CrystalHammerSpell(Spell):
         self.upgrades["shieldbreak"] = (8, 2, "Shield Breaker", "Crystal Hammer removes up to 8 SH from the target before dealing damage.")
     
     def get_description(self):
-        return ("Deal [{big_damage}_physical:physical] damage to the target. For every turn of [freeze] and [glassify] on the target, deal [{damage}_physical:physical] damage an additional time.\n"
-                "If the target dies, any unused hits are released as shards that deal 25% of the [damage:physical] to up to [{num_targets}:num_targets] random enemies in a [{radius}_tile:radius] radius in line of sight of the target.").format(**self.fmt_dict())
+        return ("Deal [{big_damage}_physical:physical] damage to the target, and hit again for [{damage}_physical:physical] damage once for every turn of [freeze] and [glassify] on the target.\n"
+                "If the target is killed by Crystal Hammer, it shatters, causing any unused hits to deal 10% of its [damage:physical] to up to [{num_targets}:num_targets] random enemies in a [{radius}_tile:radius] radius in line of sight of the target.").format(**self.fmt_dict())
     
     def fmt_dict(self):
         stats = Spell.fmt_dict(self)
@@ -1103,7 +1103,7 @@ class CrystalHammerSpell(Spell):
                 for p in self.owner.level.get_points_in_line(unit, u)[1:-1]:
                     self.caster.level.show_effect(p.x, p.y, Tags.Ice, minor=True)
                     self.caster.level.show_effect(p.x, p.y, Tags.Glassification)
-                u.deal_damage(self.get_stat("damage")//4, Tags.Physical, self)
+                u.deal_damage(self.get_stat("damage")//10, Tags.Physical, self)
                 yield
 
     def bolt(self, origin, target, damage):
