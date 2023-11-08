@@ -1012,25 +1012,32 @@ class CrystalHammerSpell(Spell):
         self.level = 5
         self.max_charges = 6
         self.range = 8
-        self.damage = 32
+        self.damage = 24
+        self.first_hit_bonus = 30
         self.num_targets = 4
         self.radius = 6
         self.shieldbreak = 0
         self.can_target_empty = False
         
-        self.upgrades["damage"] = (24, 3)
+        self.upgrades["damage"] = (16, 3)
         self.upgrades["num_targets"] = (4, 3)
         self.upgrades["combo"] = (1, 4, "Hammer Combo", "If you know the Freeze spell, you will also cast it on the same target when you cast Crystal Hammer, before the hammer hits, if possible.\nIf you know the Petrify spell with the Glassify upgrade, you will also cast it on the same target when you cast Crystal Hammer, before the hammer hits, if possible.")
         self.upgrades["shieldbreak"] = (8, 2, "Shield Breaker", "Crystal Hammer removes up to 8 SH from the target before dealing damage.")
     
     def get_description(self):
-        return ("Deal [{damage}_physical:physical] damage to the target. For every turn of [freeze] and [glassify] on the target, deal [{damage}_physical:physical] damage an additional time.\n"
-                "If the target dies, any unused hits are released as shards that deal 25% of the [damage] to up to [{num_targets}:num_targets] random enemies in a [{radius}_tile:radius] radius.").format(**self.fmt_dict())
+        return ("Deal [{big_damage}_physical:physical] damage to the target. For every turn of [freeze] and [glassify] on the target, deal [{damage}_physical:physical] damage an additional time.\n"
+                "If the target dies, any unused hits are released as shards that deal 25% of the [damage:physical] to up to [{num_targets}:num_targets] random enemies in a [{radius}_tile:radius] radius in line of sight of the target.").format(**self.fmt_dict())
     
     def fmt_dict(self):
         stats = Spell.fmt_dict(self)
         stats["radius"] = self.get_stat("radius", base=6)
+        stats["big_damage"] = self.get_stat("damage") + self.get_stat("first_hit_bonus")
         return stats
+        
+    def get_impacted_tiles(self, x, y):
+        for p in self.owner.level.get_points_in_ball(x, y, self.get_stat('radius')):
+            if self.owner.level.can_see(x, y, p.x, p.y):
+                yield p
 
     def cast(self, x, y):
         
@@ -1069,7 +1076,7 @@ class CrystalHammerSpell(Spell):
         if not unit:
             return
         
-        total_duration = 1
+        total_duration = 0
         freeze = unit.get_buff(FrozenBuff)
         if freeze:
             total_duration += freeze.turns_left
@@ -1077,17 +1084,18 @@ class CrystalHammerSpell(Spell):
         if glassify:
             total_duration += glassify.turns_left
         
+        unit.deal_damage(self.get_stat("damage") + self.get_stat("first_hit_bonus"), Tags.Physical, self)
         while unit.is_alive() and total_duration > 0:
             unit.deal_damage(self.get_stat("damage"), Tags.Physical, self)
             total_duration -= 1
 
-        if unit.is_alive():
+        if total_duration <= 0:
             return
         
         num_targets = self.get_stat("num_targets")
         for _ in range(total_duration):
             units = self.owner.level.get_units_in_ball(unit, self.get_stat('radius'))
-            units = [u for u in units if (are_hostile(self.owner, u) and u.is_alive())]
+            units = [u for u in units if (are_hostile(self.owner, u) and u.is_alive() and self.owner.level.can_see(x, y, u.x, u.y))]
             if not units:
                 continue
             random.shuffle(units)
@@ -4911,13 +4919,13 @@ class AgonizingStormSpell(Spell):
 
 class AcidRain(Buff):
 
-	def on_init(self):
-		self.resists[Tags.Poison] = -10
-		self.name = "Acid Rain"
-		self.buff_type = BUFF_TYPE_CURSE
-		self.stack_type = STACK_INTENSITY
-		self.asset = ['status', 'amplified_poison']
-		self.color = Tags.Poison.color
+    def on_init(self):
+        self.resists[Tags.Poison] = -10
+        self.name = "Acid Rain"
+        self.buff_type = BUFF_TYPE_CURSE
+        self.stack_type = STACK_INTENSITY
+        self.asset = ['status', 'amplified_poison']
+        self.color = Tags.Poison.color
 
 class NuclearWinter(Upgrade):
 

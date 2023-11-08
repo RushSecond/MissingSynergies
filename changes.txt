@@ -31,11 +31,11 @@
 + Cosmic Stasis: added 20 ice damage every turn
 
 + Crystal Hammer reworked: 
-deals 32 damage, plus an additional 32 damage hit for each turn of freeze and glassify.
+deals 54 damage, plus an additional 24 damage hit for each turn of freeze and glassify.
 If the target dies, any unneeded hits are released as shards that deal 25% of the damage to up to 4 targets within 6 radius. 
 Both damages can be increased by buffs, skills, and shrines.
 Upgrades ---
-Damage: +24 damage
+Damage: +16 damage
 Num targets: +4 targets hit by shards
 Combo: Same as before
 Shieldbreaker: target loses 8 SH before being hit
