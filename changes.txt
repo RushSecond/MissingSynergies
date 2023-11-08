@@ -1,8 +1,26 @@
+STAPLE SPELLS
+
+level 2 - chaos barrage, fan of flames, chain lightning (touch of death?)
+level 3 - flame burst, ghostball, nightmare aura
+level 4 - ice vortex, plague of filth, searing seal
+level 5 - cantrip cascade, chill wind, flock of eagles
+level 6 - heaven's wrath, imp swarm, searing orb(little weak)
+level 7 - multicast, word of chaos, word of ice
+
+STAPLE SKILLS
+
+level 4 - arcane shield, crystal power, venom spit
+level 5 - necrostatics, prince of ruin, searing heat
+level 6 - bone guard, icy veangence, starfire
+level 7 - arch conjurer, fire lord, void spikes
+
+
+
 ------ NERFS
 
 - Xenodruid: minion hp 40 -> 25, charges 3 -> 2, confusion spell cannot be applied to player (if unit.is_player_controlled: return False)
 
-- DeathMetal: minion duration 3 -> 2, minion damage 13 -> 10, max channel inf -> 10
+- DeathMetal: minion duration 3 -> 2, minion damage 13 -> 10 (back to 13?), max channel inf -> 10
 
 - Mad Maestro: charges 6 -> 2, berserk duration on alt cast 1 - > 3
 
@@ -15,6 +33,8 @@
 - Afterlife Echoes: cost 4 -> 6, duration & duration upgrade 15 -> 5, spirit echoes upgrade spirits deal holy OR dark damage, not both (nerf more??)
 
 Eternal Bomber:
+
+Astral Meltdown (doesn't reduce arcane resist unless you get the 3 point upgrade)
 
 Primordial Rot: (max hp steal 4 -> 3) (death chance 10% -> 20%)
 
@@ -34,13 +54,19 @@ Chaos Shuffle
 
 + Wild Hunt: cost 4-> 2
 
+Burnout Reactor
+
 + Chaos Hail: charges 2 -> 4
 
 + Cosmic Stasis: added 20 ice damage every turn
 
+Crystal Hammer
+
 Drought
 
 + Irradiate deals both 2 arcane and 2 poison
+
++ Liquid lightning actually works now
 
 Eye of Chaos
 
@@ -55,3 +81,11 @@ Damage: +10 damage
 Duration: +2 duration
 Radius: +2 radius
 Resistances: also permanently applies a non-stacking -50 fire and ice resistance
+
+
++ Eye Bleach deals 12 damage when blind is applied, then 2 flat damage a turn
+
++ Flesh Loan 5% damage -> 20% damage taken, now minions gain double hp as a result
+
++ Nuclear winter enemies lose 10 poison resist permanently as well
+

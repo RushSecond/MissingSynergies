@@ -4898,6 +4898,16 @@ class AgonizingStormSpell(Spell):
 
         yield
 
+class AcidRain(Buff):
+
+	def on_init(self):
+		self.resists[Tags.Poison] = -10
+		self.name = "Acid Rain"
+		self.buff_type = BUFF_TYPE_CURSE
+		self.stack_type = STACK_INTENSITY
+		self.asset = ['status', 'amplified_poison']
+		self.color = Tags.Poison.color
+
 class NuclearWinter(Upgrade):
 
     def on_init(self):
@@ -4908,13 +4918,14 @@ class NuclearWinter(Upgrade):
         self.damage = 5
     
     def get_description(self):
-        return ("Each turn, enemies inside thunderstorm and blizzard clouds take [{damage}_poison:poison] damage.").format(**self.fmt_dict())
+        return ("Each turn, enemies inside thunderstorm and blizzard clouds permanently lose [10_poison:poison] resist and then take [{damage}_poison:poison] damage.").format(**self.fmt_dict())
 
     def on_advance(self):
         damage = self.get_stat("damage")
         for unit in [unit for unit in list(self.owner.level.units) if are_hostile(unit, self.owner)]:
             cloud = self.owner.level.tiles[unit.x][unit.y].cloud
             if isinstance(cloud, StormCloud) or isinstance(cloud, BlizzardCloud):
+                unit.apply_buff(AcidRain())
                 unit.deal_damage(damage, Tags.Poison, self)
 
 class DeliriumBuff(Buff):
@@ -9193,14 +9204,14 @@ class FleshLoan(Upgrade):
         self.asset = ["MissingSynergies", "Icons", "flesh_loan"]
         self.tags = [Tags.Dark, Tags.Nature]
         self.level = 4
-        self.description = "Whenever you summon a minion, you take [dark] damage equal to 5% of the minion's max HP, rounded up. If the damage taken is not 0, that minion becomes [living] and gains max and current HP equal to 5 times the damage dealt. This effect triggers before most other effects that trigger when minions are summoned.\nEach minion can only benefit from this upgrade once.\nAt the beginning of each of your turns, if a minion is no longer alive, or if there are no enemies in the realm, you heal for the same damage that you took when summoning it, once per minion."
+        self.description = "Whenever you summon a minion, you take [dark] damage equal to 20% of the minion's max HP, rounded up. If the damage taken is not 0, that minion becomes [living] and gains max and current HP equal to 5 times the damage dealt. This effect triggers before most other effects that trigger when minions are summoned.\nEach minion can only benefit from this upgrade once.\nAt the beginning of each of your turns, if a minion is no longer alive, or if there are no enemies in the realm, you heal for the same damage that you took when summoning it, once per minion."
         self.hp_loaned = {}
         self.global_triggers[EventOnUnitPreAdded] = self.on_unit_pre_added
     
     def on_unit_pre_added(self, evt):
         if are_hostile(evt.unit, self.owner) or evt.unit.is_player_controlled or hasattr(evt.unit, "flesh_loaned"):
             return
-        dealt = self.owner.deal_damage(math.ceil(evt.unit.max_hp/20), Tags.Dark, self)
+        dealt = self.owner.deal_damage(math.ceil(evt.unit.max_hp/5), Tags.Dark, self)
         if not dealt:
             return
         evt.unit.max_hp += dealt*5
@@ -13316,17 +13327,26 @@ class EyeBleach(Upgrade):
         self.asset = ["MissingSynergies", "Icons", "eye_bleach"]
         self.tags = [Tags.Holy]
         self.level = 4
-        self.description = "At the beginning of each of your turns, each [blind] enemy takes [holy] damage equal to its [blind] duration, then its [blind] duration is reduced to [1_turn:duration]."
+        self.damage = 12
+        self.global_triggers[EventOnBuffApply] = self.on_buff_apply
+        
+    def get_description(self):
+        return ("When an unblinded enemy becomes [blind], deal [{damage}_holy:holy] damage to it.\n"
+        "Each turn all [blind] enemies take an additional [2_holy:holy] damage.\n"
+        "This additional damage is fixed, and cannot be increased using shrines, skills, or buffs.").format(**self.fmt_dict())
+        
+    def on_buff_apply(self, evt):
+        if isinstance(evt.buff, BlindBuff) and are_hostile(evt.unit, self.owner):
+            evt.unit.deal_damage(self.get_stat('damage'), Tags.Holy, self)
 
-    def on_pre_advance(self):
+    def on_advance(self):
         for u in list(self.owner.level.units):
             if not are_hostile(u, self.owner):
                 continue
             buff = u.get_buff(BlindBuff)
             if not buff:
                 continue
-            u.deal_damage(buff.turns_left, Tags.Holy, self)
-            buff.turns_left = 1
+            u.deal_damage(2, Tags.Holy, self)
 
 class AntimatterInfusion(Upgrade):
 
